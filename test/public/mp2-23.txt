@@ -1,0 +1,3 @@
+ls > ok
+echo Ok | gah . 2 | oak end > ok
+ls > ok
