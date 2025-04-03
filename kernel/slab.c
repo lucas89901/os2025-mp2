@@ -12,10 +12,30 @@
 void print_kmem_cache(struct kmem_cache *cache,
                       void (*slab_obj_printer)(void *)) {
   // debug("slab.c: print_kmem_cache\n");
+  int cache_slab_obj_count =
+      (PGSIZE - sizeof(struct kmem_cache)) / cache->object_size;
   printf(
       "[SLAB] kmem_cache { name: %s, object_size: %u, at: %p, in_cache_obj: %d "
       "}\n",
-      cache->name, cache->object_size, cache, 0);
+      cache->name, cache->object_size, cache, cache_slab_obj_count);
+
+  if (cache_slab_obj_count) {
+    printf("[SLAB]  [ cache slabs ]\n");
+    char *obj = (char *)cache + sizeof(struct kmem_cache);
+    printf("[SLAB]   [ slab %p ] { freelist: %p, nxt: %p }\n", cache,
+           cache->cache_slab_freelist, (void *)0);
+    for (int i = 0; i < cache_slab_obj_count; ++i) {
+      printf("[SLAB]    [ idx %d ] { addr: %p, as_ptr: %p", i, obj,
+             ((struct run *)obj)->next);
+      if (slab_obj_printer) {
+        printf(", as_obj: {");
+        slab_obj_printer(obj);
+        printf("}");
+      }
+      printf(" }\n");
+      obj += cache->object_size;
+    }
+  }
 
   if (!list_empty(&cache->partial)) {
     printf("[SLAB]  [ partial slabs ]\n");
@@ -113,11 +133,21 @@ struct kmem_cache *kmem_cache_create(char *name, uint object_size) {
   // INIT_LIST_HEAD(&cache->free);
   // cache->available_count = 0;
 
+  int cache_slab_obj_count = (PGSIZE - sizeof(struct kmem_cache)) / object_size;
+  char *run = (char *)cache + sizeof(struct kmem_cache);
+  cache->cache_slab_freelist = (struct run *)run;
+  for (int i = 0; i < cache_slab_obj_count - 1; ++i) {
+    char *next = run + object_size;
+    ((struct run *)run)->next = (struct run *)next;
+    run = next;
+  }
+  ((struct run *)run)->next = 0;
+
   printf(
       "[SLAB] New kmem_cache (name: %s, object size: %u bytes, at: %p, "
       "max objects per slab: %lu, support in cache obj: %d) is created\n",
       cache->name, cache->object_size, cache,
-      (PGSIZE - sizeof(struct slab)) / object_size, 0);
+      (PGSIZE - sizeof(struct slab)) / object_size, cache_slab_obj_count);
   return cache;
 }
 
@@ -126,7 +156,13 @@ void kmem_cache_destroy(struct kmem_cache *cache) {}
 void *kmem_cache_alloc(struct kmem_cache *cache) {
   printf("[SLAB] Alloc request on cache %s\n", cache->name);
 
-  // TODO: use cache as slab
+  if (cache->cache_slab_freelist) {
+    void *ret = cache->cache_slab_freelist;
+    cache->cache_slab_freelist = cache->cache_slab_freelist->next;
+    printf("[SLAB] Object %p in slab %p (%s) is allocated and initialized\n",
+           ret, cache, cache->name);
+    return ret;
+  }
 
   struct slab *slab;
   void *ret;
@@ -151,6 +187,15 @@ void *kmem_cache_alloc(struct kmem_cache *cache) {
 void kmem_cache_free(struct kmem_cache *cache, void *obj) {
   // debug("slab.c: kmem_cache_free: obj=%p; before free:    ", obj);
   // print_kmem_cache(cache, 0);
+
+  if ((char *)cache <= (char *)obj && (char *)obj < (char *)cache + PGSIZE) {
+    // Object is in cache slab.
+    printf("[SLAB] Free %p in slab %p (%s)\n", obj, cache, cache->name);
+    ((struct run *)obj)->next = cache->cache_slab_freelist;
+    cache->cache_slab_freelist = (struct run *)obj;
+    printf("[SLAB] End of free\n");
+    return;
+  }
 
   // Find slab that contains `obj`.
   struct slab *slab;
@@ -197,7 +242,7 @@ void kmem_cache_free(struct kmem_cache *cache, void *obj) {
     }
   }
 
-  debug("slab.c: kmem_cache_free: ERROR target not found\n");
+  debug("slab.c: kmem_cache_free: ERROR: target not found\n");
   // CHECK(0);
   //  debug("slab.c: kmem_cache_free: obj=%p; after free:    ", obj);
   //  print_kmem_cache(cache, 0);

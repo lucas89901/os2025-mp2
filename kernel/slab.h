@@ -37,6 +37,9 @@ struct kmem_cache {
   struct list_head partial;  // Partially allocated slabs
   // struct list_head free;     // Free slabs (Optional)
   // uint available_count;
+
+  // Bonus: Internal fragmentation optimization.
+  struct run *cache_slab_freelist;
 };
 
 // clang-format off
