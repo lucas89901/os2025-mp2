@@ -40,7 +40,7 @@ void print_kmem_cache(struct kmem_cache *cache,
   if (!list_empty(&cache->partial)) {
     printf("[SLAB]  [ partial slabs ]\n");
     struct slab *slab;
-    list_for_each_entry(slab, &cache->partial, neighbors) {
+    list_for_each_entry (slab, &cache->partial, neighbors) {
       printf("[SLAB]   [ slab %p ] { freelist: %p, nxt: %p }\n", slab,
              slab->freelist, slab_entry(slab->neighbors.next));
 
@@ -63,7 +63,7 @@ void print_kmem_cache(struct kmem_cache *cache,
   if (!list_empty(&cache->full)) {
     debug("[slab]  [ full slabs ]\n");
     struct slab *slab;
-    list_for_each_entry(slab, &cache->full, neighbors) {
+    list_for_each_entry (slab, &cache->full, neighbors) {
       debug("[slab]   [ slab %p ] { freelist: %p, nxt: %p }\n", slab,
             slab->freelist, slab_entry(slab->neighbors.next));
 
@@ -151,7 +151,17 @@ struct kmem_cache *kmem_cache_create(char *name, uint object_size) {
   return cache;
 }
 
-void kmem_cache_destroy(struct kmem_cache *cache) {}
+void kmem_cache_destroy(struct kmem_cache *cache) {
+  struct slab *slab;
+  struct slab *next;
+  list_for_each_entry_safe (slab, next, &cache->full, neighbors) {
+    kfree(slab);
+  }
+  list_for_each_entry_safe (slab, next, &cache->partial, neighbors) {
+    kfree(slab);
+  }
+  kfree(cache);
+}
 
 void *kmem_cache_alloc(struct kmem_cache *cache) {
   printf("[SLAB] Alloc request on cache %s\n", cache->name);
@@ -200,7 +210,7 @@ void kmem_cache_free(struct kmem_cache *cache, void *obj) {
   // Find slab that contains `obj`.
   struct slab *slab;
   if (!list_empty(&cache->full)) {
-    list_for_each_entry(slab, &cache->full, neighbors) {
+    list_for_each_entry (slab, &cache->full, neighbors) {
       debug("slab.c: kmem_cache_free: finding obj in full slab=%p\n", slab);
       if ((char *)slab <= (char *)obj && (char *)obj < (char *)slab + PGSIZE) {
         printf("[SLAB] Free %p in slab %p (%s)\n", obj, slab, cache->name);
@@ -222,7 +232,7 @@ void kmem_cache_free(struct kmem_cache *cache, void *obj) {
   }
 
   if (!list_empty(&cache->partial)) {
-    list_for_each_entry(slab, &cache->partial, neighbors) {
+    list_for_each_entry (slab, &cache->partial, neighbors) {
       debug("slab.c: kmem_cache_free: finding obj in partial slab=%p\n", slab);
       if ((char *)slab <= (char *)obj && (char *)obj < (char *)slab + PGSIZE) {
         printf("[SLAB] Free %p in slab %p (%s)\n", obj, slab, cache->name);
