@@ -1,3 +1,4 @@
+// clang-format off
 #pragma once
 
 #include <stdarg.h>
@@ -58,12 +59,16 @@ uint64 sys_debugswitch(void);
 #define debug(fmt, ...) \
     ((get_mode()) == OFF ? 0 : printf(fmt, ##__VA_ARGS__))
 
-//#define CHECK(cond)                              \
-//  do {                                           \
-//    if (!(cond)) {                               \
-//      printf("ASSERTION FAILED: '%s'\n", #cond); \
-//      exit(127);                                 \
-//    }                                            \
-//  } while (0)
+// clang-format on
 
-#define CHECK(cond) cond
+#ifdef B12902110_DEBUG
+#define CHECK(cond)                              \
+  do {                                           \
+    if (!(cond)) {                               \
+      printf("ASSERTION FAILED: '%s'\n", #cond); \
+      exit(127);                                 \
+    }                                            \
+  } while (0)
+#else
+#define CHECK(cond)
+#endif
