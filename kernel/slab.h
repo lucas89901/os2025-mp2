@@ -1,28 +1,25 @@
 #pragma once
 
-#include "spinlock.h"
 #include "types.h"
 
-// struct run {
-//   struct run *next;
-// };
+#include "list.h"
+#include "param.h"
+#include "spinlock.h"
+
+struct run {
+  struct run *next;
+};
+
+#define slab_entry(node) list_entry(node, struct slab, neighbors)
 
 /**
  * struct slab - Represents a slab in the slab allocator.
  * @freelist: Linked list of free objects.
  */
-struct slab
-{
-  // TODO: Choose the type of freelist from
-  //    1. void **
-  //    2. struct run *
-  // <ptr> freelist;             // Linked list of free objects
-
-  // TODO: Design how to link the slabs
-  // ...
-
-  // TODO: you can add other members
-  // ...
+struct slab {
+  struct run *freelist;  // Pointer to first free address.
+  struct list_head neighbors;
+  uint8 allocated;
 };
 
 /**
@@ -31,17 +28,18 @@ struct slab
  * @object_size: Size of a single object.
  * @lock: Lock for cache management.
  */
-struct kmem_cache
-{
-  char name[32];        // Cache name (e.g., "file")
-  uint object_size;     // Size of a single object
-  struct spinlock lock; // Lock for cache management
+struct kmem_cache {
+  char name[MP2_CACHE_MAX_NAME];  // Cache name (e.g., "file")
+  uint object_size;               // Size of a single object
+  struct spinlock lock;           // Lock for cache management
 
-  // TODO: Add slab list(s)
-  // <TYPE> full     // Completely allocated slabs (Optional)
-  // <TYPE> partial  // Partially allocated slabs
-  // <TYPE> free     // Free slabs (Optional)
+  struct list_head full;     // Completely allocated slabs (Optional)
+  struct list_head partial;  // Partially allocated slabs
+  // struct list_head free;     // Free slabs (Optional)
+  // uint available_count;
 };
+
+// clang-format off
 
 /**
  * kmem_cache_create - Create a new slab cache.

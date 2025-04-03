@@ -2,6 +2,8 @@
 // Support functions for system calls that involve file descriptors.
 //
 
+// clang-format off
+
 #include "types.h"
 #include "riscv.h"
 #include "defs.h"
@@ -13,6 +15,7 @@
 #include "stat.h"
 #include "proc.h"
 #include "debug.h"
+#include "slab.h"
 
 void fileprint_metadata(void *f) {
   struct file *file = (struct file *) f;
@@ -28,41 +31,46 @@ struct {
 
 struct kmem_cache *file_cache;
 
+uint64
+sys_printfslab()
+{
+  acquire(&file_cache->lock);
+  print_kmem_cache(file_cache, fileprint_metadata);
+  release(&file_cache->lock);
+  return 0;
+}
+
 void
 fileinit(void)
 {
   debug("[FILE] fileinit\n"); // example of using debug, you can modify this
-  initlock(&ftable.lock, "ftable");
+  file_cache = kmem_cache_create("file_cache", sizeof(struct file));
 }
 
 // Allocate a file structure.
 struct file*
 filealloc(void)
 {
-  debug("[FILE] filealloc\n"); // example of using debug, you can modify this
-  struct file *f;
-
-  acquire(&ftable.lock);
-  for(f = ftable.file; f < ftable.file + NFILE; f++){
-    if(f->ref == 0){
-      f->ref = 1;
-      release(&ftable.lock);
-      return f;
-    }
-  }
-  release(&ftable.lock);
-  return 0;
+  // clang-format on
+  acquire(&file_cache->lock);
+  debug("[FILE] filealloc\n");  // example of using debug, you can modify this
+  struct file *f = (struct file *)kmem_cache_alloc(file_cache);
+  f->ref = 1;
+  release(&file_cache->lock);
+  return f;
+  // clang-format off
 }
+
 
 // Increment ref count for file f.
 struct file*
 filedup(struct file *f)
 {
-  acquire(&ftable.lock);
+  acquire(&file_cache->lock);
   if(f->ref < 1)
     panic("filedup");
   f->ref++;
-  release(&ftable.lock);
+  release(&file_cache->lock);
   return f;
 }
 
@@ -72,18 +80,18 @@ fileclose(struct file *f)
 {
   struct file ff;
 
-  acquire(&ftable.lock);
+  acquire(&file_cache->lock);
   if(f->ref < 1)
     panic("fileclose");
   if(--f->ref > 0){
-    release(&ftable.lock);
+    release(&file_cache->lock);
     return;
   }
+  // f->ref == 0
   debug("[FILE] fileclose\n"); // example of using debug, you can modify this
   ff = *f;
-  f->ref = 0;
-  f->type = FD_NONE;
-  release(&ftable.lock);
+  kmem_cache_free(file_cache, f);
+  release(&file_cache->lock);
 
   if(ff.type == FD_PIPE){
     pipeclose(ff.pipe, ff.writable);
@@ -101,7 +109,7 @@ filestat(struct file *f, uint64 addr)
 {
   struct proc *p = myproc();
   struct stat st;
-  
+
   if(f->type == FD_INODE || f->type == FD_DEVICE){
     ilock(f->ip);
     stati(f->ip, &st);
@@ -191,4 +199,3 @@ filewrite(struct file *f, uint64 addr, int n)
 
   return ret;
 }
-
