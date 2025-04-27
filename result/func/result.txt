@@ -1,0 +1,3 @@
+Case 13 is partially passed, score: 2.7
+Case 18 is partially passed, score: 2.85
+Case 22 is partially passed, score: 2.4

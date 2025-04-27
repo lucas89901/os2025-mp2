@@ -1,0 +1,3 @@
+Case 0 is partially passed, score: 4.75
+Case 2 is partially passed, score: 4.5
+Case 3 is completely failed, score: 0

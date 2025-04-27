@@ -1,0 +1,4 @@
+== Test Slab check (Max [3(+5): slab structure (with bonus)] + [2: max objects]) (10%) ==
+Slab check (Max [3(+5): slab structure (with bonus)] + [2: max objects]): PARTIAL (7/10) (4.2s) 
+
+Score: 7/10
